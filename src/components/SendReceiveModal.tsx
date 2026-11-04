@@ -156,7 +156,7 @@ export function SendReceiveModal({
                   onChange={(e) => setRecipientBank(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-red-500"
                 >
-                  <option value="T-Pay Wallet">T-Pay Account / Mesh</option>
+                  <option value="T-Pay Wallet">T-Pay Account</option>
                   <option value="PayPal">PayPal (Global / Escrow)</option>
                   <option value="GTBank">GTBank Plc</option>
                   <option value="Access Bank">Access Bank Plc</option>
@@ -240,7 +240,7 @@ export function SendReceiveModal({
               </div>
 
               <div className="text-[11px] text-slate-400 font-mono">
-                {currentSelectedAccount.name} · T-Pay Mesh Node #01
+                {currentSelectedAccount.name} · T-Pay sample account
               </div>
             </div>
 

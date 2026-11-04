@@ -29,6 +29,16 @@ interface VoiceAssistantModalProps {
   onOpenNearbyScan: () => void;
   onNavigateToTracker?: (caseTab?: 'merchant' | 'user' | 'driver') => void;
   onOpenMarketVault?: () => void;
+  onInterpret: (
+    transcript: string,
+    language: string,
+    inventory: unknown[]
+  ) => Promise<{
+    allowed: boolean;
+    reason?: string;
+    proposal: { action: string; amountNgn: number | null; item: string | null; payeeName: string | null; reply: string };
+  }>;
+  onConfirmPayment: (draft: { amountNgn: number; memo: string }) => void;
   initialPrompt?: string;
 }
 
@@ -40,13 +50,15 @@ export function VoiceAssistantModal({
   onOpenNearbyScan,
   onNavigateToTracker,
   onOpenMarketVault,
+  onInterpret,
+  onConfirmPayment,
   initialPrompt,
 }: VoiceAssistantModalProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [language, setLanguage] = useState<SupportedLanguage>('pidgin');
-  const [isLocalSLM, setIsLocalSLM] = useState(true); // Default to local offline SLM as requested in PDF
+  const [isLocalSLM, setIsLocalSLM] = useState(!navigator.onLine);
   const [isSpeakingOutLoud, setIsSpeakingOutLoud] = useState(true);
   const [activeActionDetails, setActiveActionDetails] = useState<{
     category: 'merchant' | 'budget' | 'driver' | 'transfer' | 'general';
@@ -193,18 +205,61 @@ export function VoiceAssistantModal({
     speakAloud(confirmations[lang]);
   };
 
-  // Main Hybrid AI Natural Language Parser (Supports SLM offline rules & Gemini online)
+  /**
+   * The model only proposes. A payment still goes through the vault check on the
+   * server and then the user's own confirmation before anything is signed.
+   */
+  const interpretWithModel = async (commandText: string) => {
+    try {
+      const inventory = (await container.inventoryRepository.findAll()).map((item) => ({
+        name: item.name,
+        unitPriceNgn: item.unitPrice.amount,
+      }));
+      const { allowed, reason, proposal } = await onInterpret(commandText, language, inventory);
+      const reply = allowed ? proposal.reply : reason || proposal.reply;
+      setAiResponse(reply);
+      speakAloud(reply);
+
+      if (!allowed) return;
+      if (proposal.action === 'PAY' && proposal.amountNgn) {
+        const amountNgn = proposal.amountNgn;
+        setActiveActionDetails({
+          category: 'transfer',
+          summary: `Pay ₦${amountNgn.toLocaleString('en-NG')}${proposal.payeeName ? ` to ${proposal.payeeName}` : ''}`,
+          actionLabel: 'Review and sign',
+          onExecute: () => {
+            onClose();
+            onConfirmPayment({ amountNgn, memo: proposal.payeeName ?? '' });
+          },
+        });
+      } else if (proposal.action !== 'UNKNOWN') {
+        runRules(commandText);
+      }
+    } catch (error) {
+      console.warn('[VoiceAssistant] Falling back to rules:', error);
+      runRules(commandText);
+    }
+  };
+
   const processCommand = (commandText: string) => {
     setTranscript(commandText);
     setIsListening(false);
     soundEffects.playGateSound();
 
-    // Trigger domain use case in background
+    if (!isLocalSLM && navigator.onLine) {
+      void interpretWithModel(commandText);
+      return;
+    }
+    runRules(commandText);
+  };
+
+  // Rule-based matching: the path that works with no network.
+  const runRules = (commandText: string) => {
     container.processSpokenCommandUseCase
       .execute({
         transcript: commandText,
         language,
-        executionMode: isLocalSLM ? 'offline_slm' : 'online_cloud',
+        executionMode: 'offline_slm',
       })
       .catch((e) => console.warn('[VoiceAssistant] Domain execution notice:', e));
 
@@ -381,7 +436,7 @@ export function VoiceAssistantModal({
     const fallbackResp =
       language === 'pidgin'
         ? `I hear you say "${commandText}". I don log this request inside your T-Pay AI journal.`
-        : `Understood "${commandText}". Command processed by ${isLocalSLM ? 'Mobile SLM' : 'Gemini Cloud'}.`;
+        : `Understood "${commandText}". Command processed by ${isLocalSLM ? 'on-device rules' : 'the online model'}.`;
     setAiResponse(fallbackResp);
     speakAloud(fallbackResp);
   };
@@ -413,7 +468,7 @@ export function VoiceAssistantModal({
               <div className="flex items-center gap-1.5">
                 <h3 className="text-sm font-bold text-white tracking-tight">T-Pay Hybrid Voice AI</h3>
                 <span className="text-[9px] bg-red-950 text-red-400 border border-red-800 px-1.5 py-0.2 rounded font-mono font-bold">
-                  {isLocalSLM ? 'OFFLINE SLM' : 'ONLINE CLOUD'}
+                  {isLocalSLM ? 'OFFLINE RULES' : 'ONLINE MODEL'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400">Zero-literacy voice commerce & auto-spreadsheets</p>
@@ -462,10 +517,10 @@ export function VoiceAssistantModal({
           <button
             onClick={() => setIsLocalSLM(!isLocalSLM)}
             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-mono transition"
-            title="Toggle between Mobile SLM and Cloud Model"
+            title="Switch between on-device rules and the online model"
           >
             <Cpu className="w-3 h-3 text-red-400" />
-            <span>{isLocalSLM ? 'Mobile SLM' : 'Gemini Cloud'}</span>
+            <span>{isLocalSLM ? 'On-device rules' : 'Online model'}</span>
           </button>
         </div>
 
@@ -593,7 +648,7 @@ export function VoiceAssistantModal({
         {/* Bottom Control Bar */}
         <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
           <span className="text-[10px] text-slate-500">
-            Powered by T-Pay Hybrid SLM & PayPal Settlement
+            Rules work offline. Payments always need your confirmation.
           </span>
           <button
             onClick={onClose}

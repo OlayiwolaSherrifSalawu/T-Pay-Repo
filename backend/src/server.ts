@@ -1,7 +1,7 @@
 // backend/src/server.ts
 import 'dotenv/config';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import express from 'express';
 import { apiRouter } from './routes/api.routes';
 import { GeminiAssistantModel } from './v1/assistant';
@@ -39,6 +39,13 @@ const app = express();
 app.use(express.json());
 app.use('/api/v1', createV1Router(settlement, gateway, config.appUrl, assistant));
 app.use('/api', apiRouter);
+
+// In production one process serves the app and its API from a single origin.
+const clientDirectory = resolve('dist');
+if (existsSync(clientDirectory)) {
+  app.use(express.static(clientDirectory));
+  app.use((_req, res) => res.sendFile(join(clientDirectory, 'index.html')));
+}
 
 app.listen(config.port, () => {
   console.log(`🚀 Backend server listening on http://localhost:${config.port}`);

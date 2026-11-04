@@ -150,7 +150,7 @@ export function DashboardView({
                 Full Transaction History
               </div>
               <div className="text-[11px] text-slate-400">
-                Search, filter by BLE offline mesh & get receipts
+                Search, filter and get receipts
               </div>
             </div>
           </div>

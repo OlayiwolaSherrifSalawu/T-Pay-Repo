@@ -51,7 +51,7 @@ export function SettingsView({ onBackToDashboard }: SettingsViewProps) {
       <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold text-white uppercase">
           <Radio className="w-4 h-4 text-red-500" />
-          <span>T-Pay Offline Mesh Network</span>
+          <span>Offline connectivity (sample settings)</span>
         </div>
 
         <div className="flex items-center justify-between">

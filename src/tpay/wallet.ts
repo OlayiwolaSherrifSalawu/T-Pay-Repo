@@ -54,10 +54,13 @@ interface Identity {
 
 export class WalletError extends Error {
   public readonly code: string;
+  /** A server fault says nothing about the voucher, so it must not be shown as a rejection. */
+  public readonly transient: boolean;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, transient = false) {
     super(message);
     this.code = code;
+    this.transient = transient;
   }
 }
 
@@ -96,7 +99,11 @@ export class Wallet {
       error?: { code: string; message: string };
     };
     if (!response.ok) {
-      throw new WalletError(json.error?.code ?? 'REQUEST_FAILED', json.error?.message ?? 'Request failed');
+      throw new WalletError(
+        json.error?.code ?? 'REQUEST_FAILED',
+        json.error?.message ?? 'Request failed',
+        response.status >= 500
+      );
     }
     return json.data;
   }
@@ -296,7 +303,7 @@ export class Wallet {
         }>('POST', '/vouchers', entry.voucher);
         await this.saveVoucher({ ...entry, ...result });
       } catch (error) {
-        if (error instanceof WalletError) {
+        if (error instanceof WalletError && !error.transient) {
           await this.saveVoucher({ ...entry, status: 'REJECTED', failure: error.code });
           continue;
         }

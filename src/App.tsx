@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Bell,
@@ -20,11 +20,10 @@ import {
   Menu,
   Award,
 } from 'lucide-react';
-import { BankAccount, BankTransaction, NearbyPeer } from './types/banking';
+import { BankAccount, BankTransaction } from './types/banking';
 import { INITIAL_ACCOUNTS, INITIAL_BANK_TRANSACTIONS } from './data/bankingData';
 import { AccountCarousel } from './components/AccountCarousel';
 import { CenterSendReceiveButton } from './components/CenterSendReceiveButton';
-import { NearbyPeerScannerModal } from './components/NearbyPeerScannerModal';
 import { SendReceiveModal } from './components/SendReceiveModal';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { TransactionList } from './components/TransactionList';
@@ -33,7 +32,8 @@ import { DashboardView } from './components/views/DashboardView';
 import { TrackerView } from './components/views/TrackerView';
 import { HistoryView } from './components/views/HistoryView';
 import { SettingsView } from './components/views/SettingsView';
-import { PayPalEscrowModal } from './components/PayPalEscrowModal';
+import { OfflinePayModal, type PayDraft, type PayTab } from './components/OfflinePayModal';
+import { useWallet } from './tpay/useWallet';
 import { JudgePitchHub } from './components/JudgePitchHub';
 import { soundEffects } from './utils/audio';
 
@@ -50,14 +50,27 @@ export default function App() {
   const [isSendReceiveOpen, setIsSendReceiveOpen] = useState(false);
   const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
   const [voiceInitialPrompt, setVoiceInitialPrompt] = useState<string | undefined>(undefined);
-  const [isPayPalEscrowOpen, setIsPayPalEscrowOpen] = useState(false);
-  const [isNearbyScannerOpen, setIsNearbyScannerOpen] = useState(false);
+  const wallet = useWallet();
+  const [isOfflinePayOpen, setIsOfflinePayOpen] = useState(false);
+  const [payTab, setPayTab] = useState<PayTab>('vault');
+  const [payDraft, setPayDraft] = useState<PayDraft | null>(null);
   const [isAirtimeOpen, setIsAirtimeOpen] = useState(false);
   const [airtimePhone, setAirtimePhone] = useState('08034567890');
   const [airtimeAmount, setAirtimeAmount] = useState('2000');
   const [bannerAlert, setBannerAlert] = useState<string | null>(null);
 
   const activeAccount = accounts[activeAccountIndex];
+
+  const openOfflinePay = (tab: PayTab, draft: PayDraft | null = null) => {
+    setPayTab(tab);
+    setPayDraft(draft);
+    setIsOfflinePayOpen(true);
+  };
+
+  // PayPal sends the payer back here after approving a vault, so show them the result.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('vault')) openOfflinePay('vault');
+  }, []);
 
   // Transactions filtered to currently active swiped account
   const filteredTransactions = transactions.filter(
@@ -112,44 +125,6 @@ export default function App() {
 
     setTransactions((prev) => [newTx, ...prev]);
     showAlert(`₦${amount.toLocaleString()} sent to ${toName} (${toAcct}) successfully.`);
-  };
-
-  // Handler for Offline Peer Transfer (Bluetooth OTP)
-  const handleOfflinePeerTransfer = (peer: NearbyPeer, amount: number) => {
-    setAccounts((prev) =>
-      prev.map((acct) => {
-        if (acct.type === 'offline_checking') {
-          return {
-            ...acct,
-            availableBalance: Math.max(0, acct.availableBalance - amount),
-            ledgerBalance: Math.max(0, acct.ledgerBalance - amount),
-          };
-        }
-        return acct;
-      })
-    );
-
-    const newTx: BankTransaction = {
-      id: `tx-${Date.now()}`,
-      accountId: 'acct-offline',
-      title: `Offline BLE Transfer to ${peer.name}`,
-      subtitle: `Bluetooth Cryptogram · Acct: ${peer.accountNumber}`,
-      category: 'offline_peer',
-      amount: -amount,
-      currency: 'NGN',
-      date: 'Today',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      reference: `BLE-OTP-${Math.floor(10000 + Math.random() * 90000)}`,
-      status: 'offline_synced',
-      recipient: {
-        name: peer.name,
-        accountNumber: peer.accountNumber,
-        method: 'bluetooth_otp',
-      },
-    };
-
-    setTransactions((prev) => [newTx, ...prev]);
-    showAlert(`Offline BLE transfer of ₦${amount.toLocaleString()} to ${peer.name} synced!`);
   };
 
   // Handler for Airtime purchase
@@ -259,9 +234,9 @@ export default function App() {
 
             {/* PayPal Escrow Vault Quick Launcher */}
             <button
-              onClick={() => setIsPayPalEscrowOpen(true)}
+              onClick={() => openOfflinePay('vault')}
               className="px-2.5 py-1.5 rounded-xl bg-sky-950/90 hover:bg-sky-900 border border-sky-700/80 text-sky-300 hover:text-white transition active:scale-95 flex items-center gap-1.5 text-xs font-bold shadow-md shadow-sky-950/50"
-              title="PayPal Offline Escrow Vault"
+              title="Offline payments"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
               <span className="hidden sm:inline font-mono">PayPal</span>
@@ -306,7 +281,7 @@ export default function App() {
                 onSelectAccount={setActiveAccountIndex}
                 isBalanceHidden={isBalanceHidden}
                 onToggleHideBalance={() => setIsBalanceHidden(!isBalanceHidden)}
-                onTriggerNearbyScan={() => setIsNearbyScannerOpen(true)}
+                onTriggerNearbyScan={() => openOfflinePay('pay')}
               />
             </div>
 
@@ -331,7 +306,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setIsNearbyScannerOpen(true)}
+                onClick={() => openOfflinePay('pay')}
                 className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-900 border border-slate-800 hover:border-red-500/50 active:scale-95 transition group"
               >
                 <div className="w-9 h-9 rounded-xl bg-red-600/10 text-red-500 flex items-center justify-center mb-1.5 group-hover:bg-red-600 group-hover:text-white transition">
@@ -389,7 +364,7 @@ export default function App() {
                 setVoiceInitialPrompt(prompt);
                 setIsVoiceAssistantOpen(true);
               }}
-              onOpenPayPalEscrow={() => setIsPayPalEscrowOpen(true)}
+              onOpenPayPalEscrow={() => openOfflinePay('vault')}
             />
           </div>
         ) : activeView === 'history' ? (
@@ -407,7 +382,7 @@ export default function App() {
                   setActiveView('tracker');
                   showAlert(`Switched to Smart Resource Tracker for ${scenario.replace('_', ' ')}!`);
                 } else if (scenario === 'vault_escrow') {
-                  setIsPayPalEscrowOpen(true);
+                  openOfflinePay('vault');
                 }
               }}
               onResetDemoData={() => {
@@ -427,8 +402,8 @@ export default function App() {
 
         {/* Bottom T-Pay Brand Footer */}
         <footer className="text-center text-[10px] text-slate-500 pt-3 border-t border-slate-900">
-          <div>T-Pay Payment Solutions · Licensed by CBN & Insured by NDIC</div>
-          <div className="mt-0.5 text-slate-600">PayPal Offline Escrow Mesh · v2.4</div>
+          <div>Hackathon prototype on the PayPal sandbox. No real money moves.</div>
+          <div className="mt-0.5 text-slate-600">Bank balances on this screen are sample data.</div>
         </footer>
       </div>
 
@@ -441,7 +416,7 @@ export default function App() {
           setActiveView(view);
           setIsDrawerOpen(false);
         }}
-        onOpenPayPalEscrow={() => setIsPayPalEscrowOpen(true)}
+        onOpenPayPalEscrow={() => openOfflinePay('vault')}
         user={{
           name: 'Malik Olajuwon',
           handle: '@malik.tpay',
@@ -456,7 +431,7 @@ export default function App() {
         accounts={accounts}
         activeAccountIndex={activeAccountIndex}
         onSendTransfer={handleSendTransfer}
-        onOpenNearbyScan={() => setIsNearbyScannerOpen(true)}
+        onOpenNearbyScan={() => openOfflinePay('pay')}
       />
 
       {/* MODAL 2: Hybrid AI Voice Assistant ("hold to speak") */}
@@ -472,30 +447,22 @@ export default function App() {
           const acct = accounts.find((a) => a.type === fromType) || accounts[0];
           handleSendTransfer(acct.id, toName, '0129384719', amount, 'T-Pay');
         }}
-        onOpenNearbyScan={() => setIsNearbyScannerOpen(true)}
-        onOpenMarketVault={() => setIsPayPalEscrowOpen(true)}
+        onOpenNearbyScan={() => openOfflinePay('pay')}
+        onOpenMarketVault={() => openOfflinePay('vault')}
+        onInterpret={wallet.interpret}
+        onConfirmPayment={(draft) => openOfflinePay('pay', draft)}
         onNavigateToTracker={() => {
           setActiveView('tracker');
         }}
       />
 
-      {/* MODAL 3: Nearby Peer Discovery Scanner (Offline Bluetooth & Wi-Fi) */}
-      <NearbyPeerScannerModal
-        isOpen={isNearbyScannerOpen}
-        onClose={() => setIsNearbyScannerOpen(false)}
-        senderBalance={
-          accounts.find((a) => a.type === 'offline_checking')?.availableBalance || 0
-        }
-        onCompleteOfflineTransfer={handleOfflinePeerTransfer}
-      />
-
-      {/* MODAL 4: PayPal Offline Escrow Vault ("The Big Gun") */}
-      <PayPalEscrowModal
-        isOpen={isPayPalEscrowOpen}
-        onClose={() => setIsPayPalEscrowOpen(false)}
-        onEscrowSettled={(token) => {
-          showAlert(`PayPal settled ₦${token.amount.toLocaleString()} for ${token.recipientName}.`);
-        }}
+      {/* MODAL 3: Real offline payments */}
+      <OfflinePayModal
+        isOpen={isOfflinePayOpen}
+        onClose={() => setIsOfflinePayOpen(false)}
+        wallet={wallet}
+        initialTab={payTab}
+        draft={payDraft}
       />
 
       {/* MODAL 5: Quick Airtime Top-Up Modal */}

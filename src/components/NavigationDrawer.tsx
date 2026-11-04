@@ -43,7 +43,7 @@ export function NavigationDrawer({
     { id: 'pitch', label: 'Pitch Deck', icon: Award, desc: 'PayPal Hackathon Presentation & Arch' },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Executive Portfolio & Financial Overview' },
     { id: 'history', label: 'History', icon: History, desc: 'Full Searchable Transaction Ledger' },
-    { id: 'settings', label: 'Settings', icon: Settings, desc: 'Security, Biometrics & Mesh Controls' },
+    { id: 'settings', label: 'Settings', icon: Settings, desc: 'Security & connectivity controls' },
   ] as const;
 
 
@@ -194,7 +194,7 @@ export function NavigationDrawer({
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <div className="flex items-center gap-1.5">
                   <Radio className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                  <span>Mesh Node Active</span>
+                  <span>PayPal sandbox</span>
                 </div>
                 <span className="font-mono text-slate-500">v2.4.0</span>
               </div>

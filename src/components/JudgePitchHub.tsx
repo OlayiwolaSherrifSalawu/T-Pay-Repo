@@ -230,7 +230,7 @@ export function JudgePitchHub({ onTriggerDemoScenario, onResetDemoData, onClose 
                 <h4 className="text-sm font-semibold text-white">Bus Driver: "Collect from Everybody"</h4>
               </div>
               <p className="text-xs text-slate-400">
-                7-seat Korope mini-bus manifest. Sweeps passengers over Bluetooth/Wi-Fi mesh and informs driver Morufu of paid seats.
+                7-seat Korope mini-bus manifest. Fills the seat manifest from sample passengers and informs driver Morufu of paid seats.
               </p>
               <button
                 onClick={() => onTriggerDemoScenario('driver_bus')}
@@ -256,7 +256,7 @@ export function JudgePitchHub({ onTriggerDemoScenario, onResetDemoData, onClose 
                 className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs shadow-md shadow-sky-600/20 transition active:scale-98"
               >
                 <Play className="w-3.5 h-3.5" />
-                <span>Open Market Vault Simulator</span>
+                <span>Open offline payments</span>
               </button>
             </div>
           </div>
@@ -266,19 +266,19 @@ export function JudgePitchHub({ onTriggerDemoScenario, onResetDemoData, onClose 
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-white font-semibold">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Live Dual-Window Zero-Data Mesh Test</span>
+                <span>Try it as two devices</span>
               </div>
               <p className="text-slate-400 text-[11px]">
-                Open two separate browser tabs side by side. Transactions executed in Tab A (Buyer/Passenger) broadcast instant cryptographic vouchers to Tab B (Mama Nkechi / Morufu POS) with zero server latency!
+                This window is device A. Open device B beside it, then pay from A to B with QR codes or a copied code. Each has its own signing key and ledger.
               </p>
             </div>
             <a
-              href="/"
+              href="/?device=b"
               target="_blank"
               rel="noopener noreferrer"
               className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs whitespace-nowrap transition flex items-center gap-1.5 shrink-0"
             >
-              <span>Open Second Window ↗</span>
+              <span>Open device B ↗</span>
             </a>
           </div>
         </div>
@@ -298,28 +298,28 @@ export function JudgePitchHub({ onTriggerDemoScenario, onResetDemoData, onClose 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                 <div className="font-semibold text-sky-400 mb-1">1. Online Pre-Auth Lock</div>
                 <p className="text-[11px] text-slate-400">
-                  User locks ₦10,000 while online on PayPal servers. Creates time-bound cryptographic lock (5h or 24h).
+                  The payer approves a real PayPal authorisation. The backend issues a signed certificate carrying the ceiling, rate and 24-hour expiry.
                 </p>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                 <div className="font-semibold text-red-400 mb-1">2. Zero-Data Offline Handshake</div>
                 <p className="text-[11px] text-slate-400">
-                  Device A & B exchange HMAC-SHA256 cryptograms via BLE OTP. Merchant is guaranteed 0 double-spend fraud.
+                  The payer signs an ECDSA P-256 voucher and passes it by QR code. The payee verifies it with no network. Reconciliation detects any over-spend and blocks the vault.
                 </p>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                 <div className="font-semibold text-emerald-400 mb-1">3. Opportunistic PayPal Capture</div>
                 <p className="text-[11px] text-slate-400">
-                  Whichever device gets internet first dispatches the voucher to PayPal Capture REST API for settlement.
+                  Whichever device reconnects first submits the voucher. The backend captures once against the authorisation, and both devices see the same capture ID.
                 </p>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                 <div className="font-semibold text-amber-400 mb-1">4. Automatic Fund Melt</div>
                 <p className="text-[11px] text-slate-400">
-                  When lock duration expires, unspent funds automatically melt back into the user primary checking balance.
+                  Melting voids the remaining authorisation at PayPal. It is refused while any signed voucher has not settled.
                 </p>
               </div>
             </div>

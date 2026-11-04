@@ -78,7 +78,7 @@ export function HistoryView({ transactions, onBackToDashboard }: HistoryViewProp
               ? 'Inflow'
               : type === 'outflow'
               ? 'Outflow'
-              : 'BLE Mesh'}
+              : 'Offline'}
           </button>
         ))}
       </div>
