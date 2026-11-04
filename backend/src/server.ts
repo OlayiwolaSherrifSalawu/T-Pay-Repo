@@ -2,9 +2,9 @@
 import 'dotenv/config';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import cors from 'cors';
 import express from 'express';
 import { apiRouter } from './routes/api.routes';
+import { GeminiAssistantModel } from './v1/assistant';
 import { loadConfig } from './v1/config';
 import { RestPayPalGateway } from './v1/paypal';
 import { createV1Router } from './v1/routes';
@@ -31,10 +31,13 @@ const settlement = new SettlementService(store, gateway, {
   fxSource: config.fxSource,
 });
 
+const assistant = config.gemini
+  ? new GeminiAssistantModel(config.gemini.apiKey, config.gemini.model)
+  : null;
+
 const app = express();
-app.use(cors());
 app.use(express.json());
-app.use('/api/v1', createV1Router(settlement, gateway, config.appUrl));
+app.use('/api/v1', createV1Router(settlement, gateway, config.appUrl, assistant));
 app.use('/api', apiRouter);
 
 app.listen(config.port, () => {

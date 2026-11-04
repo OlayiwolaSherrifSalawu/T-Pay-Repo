@@ -1,4 +1,10 @@
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
+import {
+  ASSISTANT_LANGUAGES,
+  validateProposal,
+  type AssistantContext,
+  type AssistantModel,
+} from './assistant';
 import type { PayPalGateway } from './paypal';
 import { PayPalError } from './paypal';
 import { ApiError, type SettlementService } from './settlement';
@@ -14,7 +20,8 @@ function bearerToken(req: Request) {
 export function createV1Router(
   service: SettlementService,
   gateway: PayPalGateway | null,
-  appUrl: string
+  appUrl: string,
+  assistant: AssistantModel | null = null
 ) {
   const router = Router();
 
@@ -37,6 +44,7 @@ export function createV1Router(
       status: 'ok',
       paypal: gateway ? ((await gateway.isReachable()) ? 'reachable' : 'unreachable') : 'not_configured',
       environment: 'sandbox',
+      assistant: assistant ? 'model' : 'rules_only',
     }))
   );
 
@@ -62,6 +70,27 @@ export function createV1Router(
   router.get('/vouchers', authed(async (device) => service.listVouchers(device)));
   router.get('/vouchers/:id', authed(async (device, req) => service.getVoucher(device, req.params.id)));
   router.get('/ledger', authed(async (device) => service.ledger(device)));
+
+  router.post(
+    '/assistant/interpret',
+    authed(async (device, req) => {
+      if (!assistant) {
+        throw new ApiError(503, 'ASSISTANT_NOT_CONFIGURED', 'No language model is configured');
+      }
+      const transcript = String(req.body.transcript ?? '').slice(0, 500);
+      const language = ASSISTANT_LANGUAGES.find((l) => l === req.body.language) ?? 'en';
+      const vault = service.currentVault(device);
+      const context: AssistantContext = {
+        language,
+        vaultRemainingNgn:
+          vault?.status === 'ACTIVE'
+            ? Math.floor((vault.remainingUsdMinor * vault.ngnMinorPerUsd) / 10_000)
+            : null,
+        inventory: Array.isArray(req.body.inventory) ? req.body.inventory.slice(0, 50) : [],
+      };
+      return validateProposal(await assistant.interpret(transcript, context), context);
+    })
+  );
 
   router.post(
     '/webhooks/paypal',
