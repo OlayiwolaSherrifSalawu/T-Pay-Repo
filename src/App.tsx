@@ -285,6 +285,24 @@ export default function App() {
               />
             </div>
 
+            {/* The product's core flow, so nobody has to hunt for it */}
+            <button
+              onClick={() => openOfflinePay(wallet.state.vault?.status === 'ACTIVE' ? 'pay' : 'vault')}
+              className="w-full min-h-14 mb-3 px-4 py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 active:scale-[0.99] transition flex items-center justify-between text-left"
+            >
+              <span>
+                <span className="block text-sm font-bold text-white">
+                  {wallet.state.vault?.status === 'ACTIVE'
+                    ? `₦${wallet.state.remainingNgn.toLocaleString('en-NG')} ready to spend offline`
+                    : 'Get ready to pay with no internet'}
+                </span>
+                <span className="block text-[11px] text-sky-100">
+                  Held at PayPal, signed on this phone, settled when you reconnect
+                </span>
+              </span>
+              <ArrowRight className="w-5 h-5 text-white shrink-0" />
+            </button>
+
             {/* 2. CENTER SEND-RECEIVE ACTION CIRCLE (THE SIGNATURE COMPONENT) */}
             <div className="py-1">
               <CenterSendReceiveButton
@@ -312,7 +330,7 @@ export default function App() {
                 <div className="w-9 h-9 rounded-xl bg-red-600/10 text-red-500 flex items-center justify-center mb-1.5 group-hover:bg-red-600 group-hover:text-white transition">
                   <Radio className="w-4 h-4 animate-pulse" />
                 </div>
-                <span className="text-[11px] font-medium text-slate-300 text-center">Offline BLE</span>
+                <span className="text-[11px] font-medium text-slate-300 text-center">Pay Offline</span>
               </button>
 
               <button
