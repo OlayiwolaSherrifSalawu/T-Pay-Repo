@@ -1,19 +1,16 @@
 import type { ITransitRepository } from '../../domain/repositories/ITransitRepository';
-import type { IProximityTransport } from '../../../../escrow/application/ports/IProximityTransport';
+import type { IPassengerScanner } from '../ports/IPassengerScanner';
 import { Result } from '../../../../shared/domain/Result';
 import { DomainEventBus } from '../../../../shared/domain/DomainEventBus';
 import type { CollectFaresResultDTO } from '../dtos/TransitDTOs';
 
 export class CollectPassengerFaresUseCase {
   private transitRepo: ITransitRepository;
-  private proximityTransport: IProximityTransport;
+  private passengerScanner: IPassengerScanner;
 
-  constructor(
-    transitRepo: ITransitRepository,
-    proximityTransport: IProximityTransport
-  ) {
+  constructor(transitRepo: ITransitRepository, passengerScanner: IPassengerScanner) {
     this.transitRepo = transitRepo;
-    this.proximityTransport = proximityTransport;
+    this.passengerScanner = passengerScanner;
   }
 
   public async execute(): Promise<Result<CollectFaresResultDTO>> {
@@ -30,8 +27,8 @@ export class CollectPassengerFaresUseCase {
       });
     }
 
-    // 1. Proximity scan for nearby passenger devices via BLE / Wi-Fi Direct
-    const nearbyPeers = await this.proximityTransport.discoverPeers();
+    // 1. Find the passengers to seat
+    const passengers = await this.passengerScanner.scan();
     const newlyPaid: {
       seatNumber: number;
       passengerName: string;
@@ -39,22 +36,17 @@ export class CollectPassengerFaresUseCase {
       paymentMethod: string;
     }[] = [];
 
-    // 2. Iterate unpaid seats and process payment for available peers
-    for (const peer of nearbyPeers) {
+    // 2. Seat each passenger who has not been recorded yet
+    for (const passenger of passengers) {
       if (trip.isFullyPaid) break;
-      // Filter out driver/shop devices
-      if (peer.device.deviceId.includes('MORUFU') || peer.device.deviceId.includes('SHOP')) {
-        continue;
-      }
 
-      // Check if already assigned
-      const alreadyPaid = trip.seats.some((s) => s.passengerDeviceId === peer.device.deviceId);
+      const alreadyPaid = trip.seats.some((s) => s.passengerDeviceId === passenger.deviceId);
       if (alreadyPaid) continue;
 
       const recordResult = trip.recordPassengerPayment(
-        peer.device.name,
-        peer.device.deviceId,
-        peer.protocol === 'bluetooth_ble' ? 'bluetooth_ble' : 'wifi_direct'
+        passenger.name,
+        passenger.deviceId,
+        passenger.protocol
       );
 
       if (recordResult.isSuccess) {
