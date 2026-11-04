@@ -3,6 +3,7 @@ import { canonicalize, type CanonicalValue } from './jcs';
 /** Domain-separation prefixes: a signature over one type can never pass as another (DT-04). */
 const VOUCHER_DOMAIN = 'T-PAY-VOUCHER-V1\n';
 const CERTIFICATE_DOMAIN = 'T-PAY-VAULT-CERT-V1\n';
+const REGISTRATION_DOMAIN = 'T-PAY-DEVICE-REGISTRATION-V1\n';
 
 const ALGORITHM = { name: 'ECDSA', namedCurve: 'P-256' } as const;
 const SIGNATURE = { name: 'ECDSA', hash: 'SHA-256' } as const;
@@ -112,6 +113,32 @@ async function verify(
   }
 }
 
+/** A stable identifier for a public key: the hash of its canonical required members. */
+export async function keyIdOf(jwk: JsonWebKey): Promise<string> {
+  const canonical = canonicalize({
+    crv: jwk.crv ?? '',
+    kty: jwk.kty ?? '',
+    x: jwk.x ?? '',
+    y: jwk.y ?? '',
+  });
+  const digest = await crypto.subtle.digest('SHA-256', bytesOf(canonical));
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+const registrationBytes = (keyId: string, issuedAt: string) =>
+  bytesOf(`${REGISTRATION_DOMAIN}${keyId}\n${issuedAt}`);
+
+/** Proves possession of the private key, since public keys circulate in certificates. */
+export const signRegistration = (privateKey: CryptoKey, keyId: string, issuedAt: string) =>
+  sign(privateKey, registrationBytes(keyId, issuedAt));
+
+export const verifyRegistration = (
+  publicKey: CryptoKey,
+  signature: string,
+  keyId: string,
+  issuedAt: string
+) => verify(publicKey, signature, registrationBytes(keyId, issuedAt));
+
 export const signVoucher = (privateKey: CryptoKey, payload: VoucherPayload) =>
   sign(privateKey, voucherBytes(payload));
 
@@ -126,11 +153,15 @@ export const toUsdMinor = (amountNgnMinor: number, ngnMinorPerUsd: number) =>
  * Everything a payee can check with no network. The same function runs on the
  * backend, so a device and the settlement service cannot disagree about validity.
  * It cannot see other vouchers: spend across payees is caught at reconciliation.
+ *
+ * `settlementGraceMs` is for the backend: a payee who took a valid voucher may only
+ * reach a network after it expired, and must not lose the money for that.
  */
 export async function verifyVoucher(
   voucher: SignedVoucher,
   issuerPublicKey: CryptoKey,
-  now: Date
+  now: Date,
+  settlementGraceMs = 0
 ): Promise<VerificationResult> {
   const { payload, signature, certificate } = voucher;
   const certificatePayload = certificate.payload;
@@ -156,10 +187,12 @@ export async function verifyVoucher(
   }
 
   const issuedAt = new Date(payload.issuedAt).getTime();
-  if (issuedAt >= new Date(certificatePayload.expiresAt).getTime()) {
+  const expiresAt = new Date(payload.expiresAt).getTime();
+  const certificateExpiresAt = new Date(certificatePayload.expiresAt).getTime();
+  if (issuedAt >= certificateExpiresAt || expiresAt > certificateExpiresAt) {
     return { ok: false, reason: 'CERTIFICATE_EXPIRED' };
   }
-  if (now.getTime() >= new Date(payload.expiresAt).getTime()) {
+  if (now.getTime() >= expiresAt + settlementGraceMs) {
     return { ok: false, reason: 'VOUCHER_EXPIRED' };
   }
 
