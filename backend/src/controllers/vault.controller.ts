@@ -24,8 +24,9 @@ export class VaultController {
 
   public static async meltVault(req: Request, res: Response): Promise<void> {
     try {
-      const { vaultId, refundToAccountId } = req.body;
+      const { userId, vaultId, refundToAccountId } = req.body;
       const result = await container.meltMarketVaultUseCase.execute({
+        userId: userId || 'USER-MALIK-01',
         vaultId,
         refundToAccountId: refundToAccountId || 'checking',
       });
